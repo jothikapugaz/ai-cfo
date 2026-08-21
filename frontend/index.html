@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+  <title>AI Personal CFO</title>
+  <link rel="manifest" href="/manifest.json" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <style>
+    .pulse-orb {
+      background: radial-gradient(circle at 30% 30%, #a78bfa, #7c3aed);
+      border-radius: 9999px;
+      box-shadow: 0 0 0 rgba(124,58,237,0.7);
+      animation: orb 2s infinite;
+      transition: all 0.3s ease;
+    }
+    @keyframes orb {
+      0% { box-shadow: 0 0 0 0 rgba(124,58,237,0.7); transform: scale(1); }
+      50% { box-shadow: 0 0 0 15px rgba(124,58,237,0); transform: scale(1.05); }
+      100% { box-shadow: 0 0 0 0 rgba(124,58,237,0); transform: scale(1); }
+    }
+    .recording .pulse-orb {
+      background: radial-gradient(circle, #f43f5e, #e11d48);
+      animation: orb 0.8s infinite;
+    }
+    .uploading .pulse-orb {
+      background: radial-gradient(circle, #f59e0b, #d97706);
+      animation: orb 0.6s infinite;
+    }
+    .streaming .pulse-orb {
+      background: radial-gradient(circle, #34d399, #10b981);
+      animation: orb 0.9s infinite;
+    }
+    .swipe-card { transition: transform 0.3s ease; touch-action: pan-x; }
+    .tab-active {
+      background: linear-gradient(90deg, #7c3aed, #a855f7);
+      color: white;
+      border-radius: 0.5rem;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen flex flex-col">
+  <header class="sticky top-0 z-20 bg-slate-900/80 backdrop-blur border-b border-slate-800">
+    <div class="flex items-center justify-between px-4 py-3">
+      <h1 class="text-xl font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">AI CFO</h1>
+      <div id="pulseOrb" class="pulse-orb w-10 h-10"></div>
+    </div>
+  </header>
+
+  <section id="authSection" class="hidden flex-1 flex flex-col justify-center px-6 py-8">
+    <div class="space-y-4">
+      <div id="authError" class="hidden bg-red-500/20 border border-red-400 text-red-200 px-4 py-2 rounded-lg text-sm"></div>
+      <div class="grid grid-cols-2 gap-2 text-sm font-medium">
+        <button id="loginTabBtn" class="py-2 rounded-lg bg-violet-600">Login</button>
+        <button id="registerTabBtn" class="py-2 rounded-lg bg-slate-800">Register</button>
+      </div>
+      <div id="loginForm" class="space-y-3">
+        <input id="loginEmail" type="email" placeholder="Email" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none" />
+        <input id="loginPassword" type="password" placeholder="Password" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none" />
+        <button id="loginSubmit" class="w-full py-3 rounded-lg bg-violet-600 font-semibold">Sign In</button>
+      </div>
+      <div id="registerForm" class="hidden space-y-3">
+        <input id="regEmail" type="email" placeholder="Email" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none" />
+        <input id="regPassword" type="password" placeholder="Password (min 8 chars)" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none" />
+        <select id="regLanguage" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none">
+          <option value="en">English</option>
+          <option value="hi">Hindi</option>
+          <option value="ta">Tamil</option>
+          <option value="te">Telugu</option>
+          <option value="bn">Bengali</option>
+        </select>
+        <label class="flex items-center gap-2 text-sm">
+          <input id="regLowLiteracy" type="checkbox" /> Low literacy / icon mode
+        </label>
+        <button id="registerSubmit" class="w-full py-3 rounded-lg bg-violet-600 font-semibold">Create Account</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="appSection" class="hidden flex-1 flex flex-col overflow-hidden">
+    <nav class="grid grid-cols-5 text-center text-xs font-medium border-b border-slate-800 bg-slate-900/60">
+      <button data-tab="dashboard" class="tab-btn py-3">Home</button>
+      <button data-tab="receipts" class="tab-btn py-3">Receipts</button>
+      <button data-tab="income" class="tab-btn py-3">Income</button>
+      <button data-tab="insights" class="tab-btn py-3">Insights</button>
+      <button data-tab="voice" class="tab-btn py-3">Voice</button>
+    </nav>
+    <div id="tabContent" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+  </section>
+
+  <input type="file" id="receiptFileInput" accept="image/*" capture="environment" class="hidden" />
+  <input type="file" id="audioFileInput" accept="audio/*" class="hidden" />
+  <audio id="audioPlayback" class="hidden"></audio>
+  <div id="offlineBanner" class="hidden fixed bottom-4 left-4 right-4 bg-amber-500 text-black px-4 py-2 rounded-lg z-50 font-semibold">
+    Offline — changes queued
+  </div>
+
+  <script>
+    const API = '';
+    let token = localStorage.getItem('cfotoken');
+    let currentUser = null;
+    let currentTab = 'dashboard';
+    let mediaRecorder = null;
+    let audioChunks = [];
+    const offlineQueueKey = 'cfoOfflineQueue';
+
+    function apiFetch(url, options = {}) {
+      const headers = { ...(options.headers || {}) };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      return fetch(url, { ...options, headers });
+    }
+
+    function showAuth() {
+      document.getElementById('authSection').classList.remove('hidden');
+      document.getElementById('appSection').classList.add('hidden');
+    }
+
+    function showApp() {
+      document.getElementById('authSection').classList.add('hidden');
+      document.getElementById('appSection').classList.remove('hidden');
+      renderTab(currentTab);
+    }
+
+    function setPulse(state) {
+      const body = document.body;
+      body.classList.remove('recording', 'uploading', 'streaming');
+      if (state) {
+        body.classList.add(state);
+        setTimeout(() => body.classList.remove(state), 3000);
+      }
+    }
+
+    function formatCurrency(amount) {
+      const num = Number(amount);
+      if (isNaN(num)) return amount;
+      const lang = currentUser?.primary_language || 'en';
+      const currency = lang === 'en-US' || lang.includes('US') ? 'USD' : 'INR';
+      const locale = lang === 'en-US' ? 'en-US' : 'en-IN';
+      try {
+        return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(num);
+      } catch {
+        return `${currency} ${num.toFixed(2)}`;
+      }
+    }
+
+    function speakText(text) {
+      if (!('speechSynthesis' in window)) return;
+      const utter = new SpeechSynthesisUtterance(text);
+      const lang = currentUser?.primary_language || 'en';
+      const langMap = { en: 'en-US', hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN', bn: 'bn-IN' };
+      utter.lang = langMap[lang] || 'en-US';
+      setPulse('streaming');
+      speechSynthesis.speak(utter);
+    }
+
+    function dataURLtoBlob(dataUrl, mime) {
+      const arr = dataUrl.split(',');
+      const byteString = atob(arr[1]);
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+      return new Blob([ab], { type: mime || 'application/octet-stream' });
+    }
+
+    function updateOfflineBanner() {
+      const queue = JSON.parse(localStorage.getItem(offlineQueueKey) || '[]');
+      document.getElementById('offlineBanner').classList.toggle('hidden', queue.length === 0);
+    }
+
+    function queueUpload(endpoint, filename, dataUrl, mimeType, extraFields = {}) {
+      const queue = JSON.parse(localStorage.getItem(offlineQueueKey) || '[]');
+      queue.push({ type: 'upload', endpoint, filename, dataUrl, mimeType, extraFields });
+      localStorage.setItem(offlineQueueKey, JSON.stringify(queue));
+      updateOfflineBanner();
+    }
+
+    async function processQueue() {
+      if (!navigator.onLine) return;
+      const queue = JSON.parse(localStorage.getItem(offlineQueueKey) || '[]');
+      if (!queue.length || !token) return;
+      for (let i = queue.length - 1; i >= 0; i--) {
+        const item = queue[i];
+        try {
+          const blob = dataURLtoBlob(item.dataUrl, item.mimeType);
+          const fd = new FormData();
+          fd.append('file', blob, item.filename);
+          Object.entries(item.extraFields || {}).forEach(([k, v]) => fd.append(k, v));
+          const res = await fetch(item.endpoint, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: fd
+          });
+          if (res.ok) {
+            queue.splice(i, 1);
+            localStorage.setItem(offlineQueueKey, JSON.stringify(queue));
+          } else {
+            break;
+          }
+        } catch (e) {
+          break;
+        }
+      }
+      updateOfflineBanner();
+    }
+
+    function renderTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach((btn) => {
+        const isActive = btn.dataset.tab === tab;
+        btn.classList.toggle('tab-active', isActive);
+      });
+      switch (tab) {
+        case 'dashboard': renderDashboard(); break;
+        case 'receipts': renderReceipts(); break;
+        case 'income': renderIncome(); break;
+        case 'insights': renderInsights(); break;
+        case 'voice': renderVoice(); break;
+      }
+    }
+
+    async function renderDashboard() {
+      const container = document.getElementById('tabContent');
+      container.innerHTML = '<div class="text-center py-10">Loading...</div>';
+      try {
+        const [receiptsRes, incomeRes, insightsRes] = await Promise.all([
+          apiFetch('/receipts'),
+          apiFetch('/incomes'),
+          apiFetch('/insights')
+        ]);
+        const receipts = await receiptsRes.json();
+        const incomes = await incomeRes.json();
+        const insights = await insightsRes.json();
+        const totalSpent = receipts.reduce((acc, r) => acc + Number(r.total_amount), 0);
+        const totalIncome = incomes.reduce((acc, i) => acc + Number(i.amount), 0);
+        container.innerHTML = `
+          <div class="grid grid-cols-1 gap-4">
+            <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800">
+              <p class="text-sm text-slate-400">Net Cash Flow</p>
+              <p class="text-3xl font-bold mt-1">${formatCurrency(totalIncome - totalSpent)}</p>
+              <p class="text-xs text-slate-500 mt-1">Income ${formatCurrency(totalIncome)} • Spent ${formatCurrency(totalSpent)}</p>
+            </div>
+            <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800">
+              <p class="text-sm text-slate-400">AI Insights</p>
+              ${insights.length ? insights.slice(0, 3).map(i => `
+                <div class="mt-3 flex items-start gap-2">
+                  <span class="text-violet-400">✦</span>
+                  <div>
+                    <p class="text-sm text-slate-200">${i.insight_text}</p>
+                    <p class="text-xs text-slate-500">${i.category}</p>
+                  </div>
+                  <button onclick="speakText('${i.insight_text.replace(/'/g, '\\\'')}')" class="ml-auto text-violet-300">🔊</button>
+                </div>
+              `).join('') : '<p class="mt-2 text-sm text-slate-500">No insights yet. Go to Insights tab to generate.</p>'}
+            </div>
+            <button onclick="document.getElementById('receiptFileInput').click()" class="w-full py-4 rounded-2xl bg-violet-700 font-bold text-lg active:scale-95 transition">📷 Add Receipt</button>
+            <button onclick="renderTab('voice')" class="w-full py-4 rounded-2xl bg-emerald-700 font-bold text-lg active:scale-95 transition">🎤 Voice Triage</button>
+          </div>
+        `;
+      } catch (e) {
+        container.innerHTML = `<div class="text-center py-10 text-red-400">${e.message}</div>`;
+      }
+    }
+
+    async function renderReceipts() {
+      const container = document.getElementById('tabContent');
+      container.innerHTML = '<div class="text-center py-10">Loading receipts...</div>';
+      try {
+        const res = await apiFetch('/receipts');
+        const receipts = await res.json();
+        if (!receipts.length) {
+          container.innerHTML = `
+            <div class="text-center py-20">
+              <p class="text-slate-400">No receipts yet</p>
+              <button onclick="document.getElementById('receiptFileInput').click()" class="mt-4 py-3 px-6 rounded-lg bg-violet-600 font-semibold">Add Receipt</button>
+            </div>`;
+          return;
+        }
+        container.innerHTML = receipts.map(r => `
+          <div class="swipe-card bg-slate-900 rounded-2xl p-4 border border-slate-800 mb-3" data-id="${r.receipt_id}">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="font-semibold">${r.merchant_name || 'Unknown'}</p>
+                <p class="text-xs text-slate-400">${new Date(r.timestamp).toLocaleDateString()}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-lg font-bold text-violet-300">${formatCurrency(r.total_amount)}</p>
+                <span class="text-xs px-2 py-0.5 rounded-full ${r.processing_status === 'Success' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">${r.processing_status}</span>
+              </div>
+            </div>
+            ${r.line_items.length ? r.line_items.map(i => `
+              <div class="mt-2 text-xs text-slate-300 flex justify-between border-t border-slate-800 pt-2">
+                <span>${i.product_name}</span>
+                <span>${i.quantity} × ${formatCurrency(i.unit_price)}</span>
+              </div>
+            `).join('') : '<p class="text-xs text-amber-300 mt-2">Incomplete — tap Voice tab to split items</p>'}
+          </div>
+        `).join('');
+        attachSwipeHandlers();
+      } catch (e) {
+        container.innerHTML = `<div class="text-center py-10 text-red-400">${e.message}</div>`;
+      }
+    }
+
+    function attachSwipeHandlers() {
+      document.querySelectorAll('.swipe-card').forEach((card) => {
+        let startX = 0;
+        let dx = 0;
+        card.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; });
+        card.addEventListener('touchmove', (e) => {
+          dx = e.touches[0].clientX - startX;
+          card.style.transform = `translateX(${dx}px)`;
+        });
+        card.addEventListener('touchend', () => {
+          if (Math.abs(dx) > 80) {
+            card.style.transform = dx > 0 ? 'translateX(120%)' : 'translateX(-120%)';
+            setTimeout(() => card.remove(), 300);
+          } else {
+            card.style.transform = 'translateX(0)';
+          }
+          dx = 0;
+        });
+      });
+    }
+
+    async function renderIncome() {
+      const container = document.getElementById('tabContent');
+      container.innerHTML = '<div class="text-center py-10">Loading income...</div>';
+      try {
+        const res = await apiFetch('/incomes');
+        const incomes = await res.json();
+        container.innerHTML = `
+          <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800">
+            <p class="text-sm text-slate-400">Total Income</p>
+            <p class="text-2xl font-bold">${formatCurrency(incomes.reduce((acc, i) => acc + Number(i.amount), 0))}</p>
+          </div>
+          <form id="incomeForm" class="bg-slate-900 rounded-2xl p-4 border border-slate-800 space-y-3">
+            <input id="incomeAmount" type="number" step="0.01" placeholder="Amount" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none" />
+            <select id="incomeSource" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none">
+              <option value="salary">Salary</option>
+              <option value="daily wages">Daily Wages</option>
+              <option value="cash">Cash</option>
+            </select>
+            <button type="submit" class="w-full py-3 rounded-lg bg-emerald-700 font-semibold">Add Income</button>
+          </form>
+          <div class="space-y-2">
+            ${incomes.map(i => `
+              <div class="bg-slate-900 rounded-xl p-3 border border-slate-800 flex justify-between">
+                <div><p class="font-medium">${i.source}</p><p class="text-xs text-slate-500">${new Date(i.timestamp).toLocaleDateString()}</p></div>
+                <p class="font-bold text-emerald-300">${formatCurrency(i.amount)}</p>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        document.getElementById('incomeForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const amount = document.getElementById('incomeAmount').value;
+          const source = document.getElementById('incomeSource').value;
+          if (!amount) return;
+          await apiFetch('/incomes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: Number(amount), source })
+          });
+          renderIncome();
+        });
+      } catch (e) {
+        container.innerHTML = `<div class="text-center py-10 text-red-400">${e.message}</div>`;
+      }
+    }
+
+    async function renderInsights() {
+      const container = document.getElementById('tabContent');
+      container.innerHTML = '<div class="text-center py-10">Loading insights...</div>';
+      try {
+        const res = await apiFetch('/insights');
+        const insights = await res.json();
+        container.innerHTML = `
+          <button id="generateInsightsBtn" class="w-full py-4 rounded-2xl bg-violet-700 font-bold text-lg active:scale-95 transition">✨ Generate Strategic Insights</button>
+          <div class="space-y-3 mt-4">
+            ${insights.length ? insights.map(i => `
+              <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-sm">${i.insight_text}</p>
+                  <button onclick="speakText('${i.insight_text.replace(/'/g, '\\\'')}')" class="text-violet-300 text-xl">🔊</button>
+                </div>
+                <p class="text-xs text-slate-500 mt-2">${i.category} • ${new Date(i.timestamp).toLocaleDateString()}</p>
+              </div>
+            `).join('') : '<p class="text-center text-slate-500 mt-4">No insights yet. Tap Generate.</p>'}
+          </div>
+        `;
+        document.getElementById('generateInsightsBtn').addEventListener('click', async () => {
+          await apiFetch('/insights/generate', { method: 'POST' });
+          renderInsights();
+        });
+      } catch (e) {
+        container.innerHTML = `<div class="text-center py-10 text-red-400">${e.message}</div>`;
+      }
+    }
+
+    async function renderVoice() {
+      const container = document.getElementById('tabContent');
+      let incompleteReceipts = [];
+      try {
+        const res = await apiFetch('/receipts');
+        const receipts = await res.json();
+        incompleteReceipts = receipts.filter(r => r.processing_status === 'Incomplete');
+      } catch (e) {}
+
+      container.innerHTML = `
+        <div class="bg-slate-900 rounded-2xl p-6 border border-slate-800 text-center">
+          <p class="text-slate-400 mb-4">Tap to speak your purchase details</p>
+          <button id="recordBtn" class="w-24 h-24 rounded-full bg-red-600 text-4xl active:scale-90 transition">🎤</button>
+          <p id="recordingStatus" class="mt-3 text-sm text-slate-400">Not recording</p>
+          <div class="mt-4">
+            <label class="text-sm text-slate-400">Link to incomplete receipt (optional)</label>
+            <select id="voiceReceiptSelect" class="w-full mt-2 bg-slate-800 rounded-lg px-4 py-3 outline-none">
+              <option value="">None</option>
+              ${incompleteReceipts.map(r => `<option value="${r.receipt_id}">${r.merchant_name || 'Unknown'} — ${formatCurrency(r.total_amount)}</option>`).join('')}
+            </select>
+          </div>
+          <button id="uploadAudioBtn" class="mt-4 w-full py-3 rounded-lg bg-slate-700 font-semibold">Upload Audio File</button>
+        </div>
+      `;
+
+      const recordBtn = document.getElementById('recordBtn');
+      const statusEl = document.getElementById('recordingStatus');
+      let isRecording = false;
+
+      recordBtn.addEventListener('click', async () => {
+        if (isRecording) {
+          mediaRecorder.stop();
+          isRecording = false;
+          statusEl.textContent = 'Processing...';
+          setPulse('uploading');
+          return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          alert('Microphone not supported');
+          return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+        mediaRecorder.onstop = async () => {
+          const blob = new Blob(audioChunks, { type: 'audio/webm' });
+          stream.getTracks().forEach(t => t.stop());
+          const receiptId = document.getElementById('voiceReceiptSelect').value;
+          const dataUrl = await new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+          const extra = {};
+          if (receiptId) extra['receipt_id'] = receiptId;
+          if (navigator.onLine) {
+            const fd = new FormData();
+            fd.append('file', blob, 'voice.webm');
+            Object.entries(extra).forEach(([k, v]) => fd.append(k, v));
+            try {
+              await apiFetch('/voice', { method: 'POST', body: fd });
+            } catch (e) {}
+          } else {
+            queueUpload('/voice', 'voice.webm', dataUrl, 'audio/webm', extra);
+          }
+          statusEl.textContent = 'Transcription queued';
+          renderVoice();
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        statusEl.textContent = 'Recording...';
+        setPulse('recording');
+      });
+
+      document.getElementById('uploadAudioBtn').addEventListener('click', () => {
+        document.getElementById('audioFileInput').click();
+      });
+    }
+
+    // File upload handling
+    document.getElementById('receiptFileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      setPulse('uploading');
+      const dataUrl = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+      if (navigator.onLine) {
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+          await apiFetch('/receipts', { method: 'POST', body: fd });
+        } catch (err) {}
+      } else {
+        queueUpload('/receipts', file.name, dataUrl, file.type);
+      }
+      e.target.value = '';
+      renderTab('receipts');
+    });
+
+    document.getElementById('audioFileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const dataUrl = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+      if (navigator.onLine) {
+        const fd = new FormData();
+        fd.append('file', file);
+        try {
+          await apiFetch('/voice', { method: 'POST', body: fd });
+        } catch (err) {}
+      } else {
+        queueUpload('/voice', file.name, dataUrl, file.type);
+      }
+      e.target.value = '';
+      renderVoice();
+    });
+
+    // Auth tab switch
+    document.getElementById('loginTabBtn').addEventListener('click', () => {
+      document.getElementById('loginForm').classList.remove('hidden');
+      document.getElementById('registerForm').classList.add('hidden');
+      document.getElementById('loginTabBtn').classList.add('bg-violet-600');
+      document.getElementById('registerTabBtn').classList.remove('bg-violet-600');
+    });
+    document.getElementById('registerTabBtn').addEventListener('click', () => {
+      document.getElementById('registerForm').classList.remove('hidden');
+      document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('registerTabBtn').classList.add('bg-violet-600');
+      document.getElementById('loginTabBtn').classList.remove('bg-violet-600');
+    });
+
+    document.getElementById('loginSubmit').addEventListener('click', async () => {
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const params = new URLSearchParams();
+      params.append('username', email);
+      params.append('password', password);
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Login failed');
+        token = data.access_token;
+        localStorage.setItem('cfotoken', token);
+        currentUser = data.user;
+        showApp();
+        processQueue();
+      } catch (e) {
+        const err = document.getElementById('authError');
+        err.textContent = e.message;
+        err.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('registerSubmit').addEventListener('click', async () => {
+      const payload = {
+        email: document.getElementById('regEmail').value,
+        password: document.getElementById('regPassword').value,
+        primary_language: document.getElementById('regLanguage').value,
+        low_literacy_mode: document.getElementById('regLowLiteracy').checked
+      };
+      try {
+        const res = await fetch('/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.detail || 'Registration failed');
+        }
+        // Auto-login after register
+        document.getElementById('loginEmail').value = payload.email;
+        document.getElementById('loginPassword').value = payload.password;
+        document.getElementById('loginSubmit').click();
+      } catch (e) {
+        const err = document.getElementById('authError');
+        err.textContent = e.message;
+        err.classList.remove('hidden');
+      }
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => renderTab(btn.dataset.tab));
+    });
+
+    window.addEventListener('online', processQueue);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+
+    async function loadApp() {
+      if (!token) {
+        showAuth();
+        return;
+      }
+      try {
+        const res = await apiFetch('/auth/me');
+        if (!res.ok) throw new Error('Session expired');
+        currentUser = await res.json();
+        showApp();
+        processQueue();
+      } catch (e) {
+        localStorage.removeItem('cfotoken');
+        token = null;
+        showAuth();
+      }
+    }
+
+    updateOfflineBanner();
+    loadApp();
+  </script>
+</body>
+          </html>
