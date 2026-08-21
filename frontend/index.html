@@ -5,23 +5,53 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
   <title>AI Personal CFO</title>
   <link rel="manifest" href="/manifest.json" />
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
   <style>
-    input, select, textarea {
-      color: white !important;
-      caret-color: white !important;
+    /* Critical inline styles — always work even without Tailwind */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #0f172a;
+      color: #ffffff;
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background-color: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: bold;
+      background: linear-gradient(90deg, #a78bfa, #f0abfc);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
     }
     .pulse-orb {
+      width: 40px;
+      height: 40px;
       background: radial-gradient(circle at 30% 30%, #a78bfa, #7c3aed);
-      border-radius: 9999px;
-      box-shadow: 0 0 0 rgba(124,58,237,0.7);
+      border-radius: 50%;
+      box-shadow: 0 0 0 rgba(124, 58, 237, 0.7);
       animation: orb 2s infinite;
       transition: all 0.3s ease;
     }
     @keyframes orb {
-      0% { box-shadow: 0 0 0 0 rgba(124,58,237,0.7); transform: scale(1); }
-      50% { box-shadow: 0 0 0 15px rgba(124,58,237,0); transform: scale(1.05); }
-      100% { box-shadow: 0 0 0 0 rgba(124,58,237,0); transform: scale(1); }
+      0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.7); transform: scale(1); }
+      50% { box-shadow: 0 0 0 15px rgba(124, 58, 237, 0); transform: scale(1.05); }
+      100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); transform: scale(1); }
     }
     .recording .pulse-orb {
       background: radial-gradient(circle, #f43f5e, #e11d48);
@@ -35,69 +65,149 @@
       background: radial-gradient(circle, #34d399, #10b981);
       animation: orb 0.9s infinite;
     }
-    .swipe-card { transition: transform 0.3s ease; touch-action: pan-x; }
+    #authSection, #appSection {
+      flex: 1;
+      padding: 24px 16px;
+    }
+    .hidden {
+      display: none !important;
+    }
+    input, select, textarea {
+      background-color: #1e293b;
+      color: #ffffff;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px 16px;
+      width: 100%;
+      font-size: 16px;
+      outline: none;
+      caret-color: #a78bfa;
+    }
+    input::placeholder, textarea::placeholder {
+      color: #94a3b8;
+    }
+    button {
+      background-color: #7c3aed;
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 16px;
+      width: 100%;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    button:active {
+      transform: scale(0.97);
+    }
+    .tab-btn {
+      background-color: #1e293b;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      font-size: 14px;
+    }
     .tab-active {
       background: linear-gradient(90deg, #7c3aed, #a855f7);
       color: white;
-      border-radius: 0.5rem;
     }
+    .tab-bar {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      padding: 8px;
+      background-color: #1e293b;
+      border-bottom: 1px solid #334155;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .swipe-card {
+      transition: transform 0.3s ease;
+      touch-action: pan-x;
+    }
+    #offlineBanner {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      background-color: #f59e0b;
+      color: #000000;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      z-index: 50;
+    }
+    .error-message {
+      background-color: rgba(239, 68, 68, 0.2);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .hidden { display: none; }
   </style>
 </head>
-<body class="bg-slate-950 text-white min-h-screen flex flex-col">
-  <header class="sticky top-0 z-20 bg-slate-900/80 backdrop-blur border-b border-slate-800">
-    <div class="flex items-center justify-between px-4 py-3">
-      <h1 class="text-xl font-bold bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent">AI CFO</h1>
-      <div id="pulseOrb" class="pulse-orb w-10 h-10"></div>
-    </div>
+<body>
+  <header>
+    <h1>AI CFO</h1>
+    <div id="pulseOrb" class="pulse-orb"></div>
   </header>
 
-  <section id="authSection" class="hidden flex-1 flex flex-col justify-center px-6 py-8">
-    <div class="space-y-4">
-      <div id="authError" class="hidden bg-red-500/20 border border-red-400 text-red-200 px-4 py-2 rounded-lg text-sm"></div>
-      <div class="grid grid-cols-2 gap-2 text-sm font-medium">
-        <button id="loginTabBtn" class="py-2 rounded-lg bg-violet-600">Login</button>
-        <button id="registerTabBtn" class="py-2 rounded-lg bg-slate-800">Register</button>
-      </div>
-      <div id="loginForm" class="space-y-3">
-        <input id="loginEmail" type="email" placeholder="Email" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none" />
-        <input id="loginPassword" type="password" placeholder="Password" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none" />
-        <button id="loginSubmit" class="w-full py-3 rounded-lg bg-violet-600 font-semibold">Sign In</button>
-      </div>
-      <div id="registerForm" class="hidden space-y-3">
-        <input id="regEmail" type="email" placeholder="Email" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none" />
-        <input id="regPassword" type="password" placeholder="Password (min 8 chars)" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none" />
-        <select id="regLanguage" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none">
-          <option value="en">English</option>
-          <option value="hi">Hindi</option>
-          <option value="ta">Tamil</option>
-          <option value="te">Telugu</option>
-          <option value="bn">Bengali</option>
-        </select>
-        <label class="flex items-center gap-2 text-sm">
-          <input id="regLowLiteracy" type="checkbox" /> Low literacy / icon mode
-        </label>
-        <button id="registerSubmit" class="w-full py-3 rounded-lg bg-violet-600 font-semibold">Create Account</button>
-      </div>
+  <section id="authSection">
+    <div style="margin-bottom: 16px;">
+      <div id="authError" class="error-message hidden"></div>
+    </div>
+    <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+      <button id="loginTabBtn" style="flex: 1;" class="tab-btn tab-active">Login</button>
+      <button id="registerTabBtn" style="flex: 1;" class="tab-btn">Register</button>
+    </div>
+    <div id="loginForm" style="display: flex; flex-direction: column; gap: 12px;">
+      <input id="loginEmail" type="email" placeholder="Email" />
+      <input id="loginPassword" type="password" placeholder="Password" />
+      <button id="loginSubmit">Sign In</button>
+    </div>
+    <div id="registerForm" style="display: none; flex-direction: column; gap: 12px;">
+      <input id="regEmail" type="email" placeholder="Email" />
+      <input id="regPassword" type="password" placeholder="Password (min 8 chars)" />
+      <select id="regLanguage">
+        <option value="en">English</option>
+        <option value="hi">Hindi</option>
+        <option value="ta">Tamil</option>
+        <option value="te">Telugu</option>
+        <option value="bn">Bengali</option>
+      </select>
+      <label style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+        <input type="checkbox" id="regLowLiteracy" style="width: auto;" /> Low literacy / icon mode
+      </label>
+      <button id="registerSubmit">Create Account</button>
     </div>
   </section>
 
-  <section id="appSection" class="hidden flex-1 flex flex-col overflow-hidden">
-    <nav class="grid grid-cols-5 text-center text-xs font-medium border-b border-slate-800 bg-slate-900/60">
-      <button data-tab="dashboard" class="tab-btn py-3">Home</button>
-      <button data-tab="receipts" class="tab-btn py-3">Receipts</button>
-      <button data-tab="income" class="tab-btn py-3">Income</button>
-      <button data-tab="insights" class="tab-btn py-3">Insights</button>
-      <button data-tab="voice" class="tab-btn py-3">Voice</button>
-    </nav>
-    <div id="tabContent" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+  <section id="appSection" class="hidden" style="display: none; flex-direction: column; flex: 1;">
+    <div class="tab-bar">
+      <button data-tab="dashboard" class="tab-btn tab-active">Home</button>
+      <button data-tab="receipts" class="tab-btn">Receipts</button>
+      <button data-tab="income" class="tab-btn">Income</button>
+      <button data-tab="insights" class="tab-btn">Insights</button>
+      <button data-tab="voice" class="tab-btn">Voice</button>
+    </div>
+    <div id="tabContent" style="flex: 1; overflow-y: auto; padding: 16px;"></div>
   </section>
 
-  <input type="file" id="receiptFileInput" accept="image/*" capture="environment" class="hidden" />
-  <input type="file" id="audioFileInput" accept="audio/*" class="hidden" />
-  <audio id="audioPlayback" class="hidden"></audio>
-  <div id="offlineBanner" class="hidden fixed bottom-4 left-4 right-4 bg-amber-500 text-black px-4 py-2 rounded-lg z-50 font-semibold">
-    Offline — changes queued
-  </div>
+  <input type="file" id="receiptFileInput" accept="image/*" capture="environment" style="display: none;" />
+  <input type="file" id="audioFileInput" accept="audio/*" style="display: none;" />
+  <audio id="audioPlayback" style="display: none;"></audio>
+  <div id="offlineBanner" class="hidden">Offline — changes queued</div>
 
   <script>
     const API = '';
@@ -115,13 +225,13 @@
     }
 
     function showAuth() {
-      document.getElementById('authSection').classList.remove('hidden');
-      document.getElementById('appSection').classList.add('hidden');
+      document.getElementById('authSection').style.display = 'block';
+      document.getElementById('appSection').style.display = 'none';
     }
 
     function showApp() {
-      document.getElementById('authSection').classList.add('hidden');
-      document.getElementById('appSection').classList.remove('hidden');
+      document.getElementById('authSection').style.display = 'none';
+      document.getElementById('appSection').style.display = 'flex';
       renderTab(currentTab);
     }
 
@@ -138,8 +248,8 @@
       const num = Number(amount);
       if (isNaN(num)) return amount;
       const lang = currentUser?.primary_language || 'en';
-      const currency = lang === 'en-US' || lang.includes('US') ? 'USD' : 'INR';
-      const locale = lang === 'en-US' ? 'en-US' : 'en-IN';
+      const currency = (lang === 'en-US' || lang.includes('US')) ? 'USD' : 'INR';
+      const locale = (lang === 'en-US') ? 'en-US' : 'en-IN';
       try {
         return new Intl.NumberFormat(locale, { style: 'currency', currency, maximumFractionDigits: 2 }).format(num);
       } catch {
@@ -150,9 +260,8 @@
     function speakText(text) {
       if (!('speechSynthesis' in window)) return;
       const utter = new SpeechSynthesisUtterance(text);
-      const lang = currentUser?.primary_language || 'en';
       const langMap = { en: 'en-US', hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN', bn: 'bn-IN' };
-      utter.lang = langMap[lang] || 'en-US';
+      utter.lang = langMap[currentUser?.primary_language || 'en'] || 'en-US';
       setPulse('streaming');
       speechSynthesis.speak(utter);
     }
@@ -207,7 +316,7 @@
       updateOfflineBanner();
     }
 
-    function renderTab(tab) {
+    async function renderTab(tab) {
       currentTab = tab;
       document.querySelectorAll('.tab-btn').forEach((btn) => {
         const isActive = btn.dataset.tab === tab;
@@ -224,7 +333,7 @@
 
     async function renderDashboard() {
       const container = document.getElementById('tabContent');
-      container.innerHTML = '<div class="text-center py-10">Loading...</div>';
+      container.innerHTML = '<div style="text-align:center; padding:40px 0;">Loading...</div>';
       try {
         const [receiptsRes, incomeRes, insightsRes] = await Promise.all([
           apiFetch('/receipts'),
@@ -237,71 +346,71 @@
         const totalSpent = receipts.reduce((acc, r) => acc + Number(r.total_amount), 0);
         const totalIncome = incomes.reduce((acc, i) => acc + Number(i.amount), 0);
         container.innerHTML = `
-          <div class="grid grid-cols-1 gap-4">
-            <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800">
-              <p class="text-sm text-slate-400">Net Cash Flow</p>
-              <p class="text-3xl font-bold mt-1">${formatCurrency(totalIncome - totalSpent)}</p>
-              <p class="text-xs text-slate-500 mt-1">Income ${formatCurrency(totalIncome)} • Spent ${formatCurrency(totalSpent)}</p>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div class="card">
+              <p style="font-size: 14px; color: #94a3b8;">Net Cash Flow</p>
+              <p style="font-size: 28px; font-weight: bold; margin-top: 4px;">${formatCurrency(totalIncome - totalSpent)}</p>
+              <p style="font-size: 12px; color: #64748b; margin-top: 4px;">Income ${formatCurrency(totalIncome)} • Spent ${formatCurrency(totalSpent)}</p>
             </div>
-            <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800">
-              <p class="text-sm text-slate-400">AI Insights</p>
+            <div class="card">
+              <p style="font-size: 14px; color: #94a3b8;">AI Insights</p>
               ${insights.length ? insights.slice(0, 3).map(i => `
-                <div class="mt-3 flex items-start gap-2">
-                  <span class="text-violet-400">✦</span>
-                  <div>
-                    <p class="text-sm text-slate-200">${i.insight_text}</p>
-                    <p class="text-xs text-slate-500">${i.category}</p>
+                <div style="margin-top: 12px; display: flex; align-items: flex-start; gap: 8px;">
+                  <span style="color: #a78bfa;">✦</span>
+                  <div style="flex: 1;">
+                    <p style="font-size: 14px;">${i.insight_text}</p>
+                    <p style="font-size: 12px; color: #64748b;">${i.category}</p>
                   </div>
-                  <button onclick="speakText('${i.insight_text.replace(/'/g, '\\\'')}')" class="ml-auto text-violet-300">🔊</button>
+                  <button onclick="speakText('${i.insight_text.replace(/'/g, '\\\'')}')" style="width: auto; background: none; color: #a78bfa; padding: 4px;">🔊</button>
                 </div>
-              `).join('') : '<p class="mt-2 text-sm text-slate-500">No insights yet. Go to Insights tab to generate.</p>'}
+              `).join('') : '<p style="margin-top: 8px; font-size: 14px; color: #64748b;">No insights yet. Go to Insights tab to generate.</p>'}
             </div>
-            <button onclick="document.getElementById('receiptFileInput').click()" class="w-full py-4 rounded-2xl bg-violet-700 font-bold text-lg active:scale-95 transition">📷 Add Receipt</button>
-            <button onclick="renderTab('voice')" class="w-full py-4 rounded-2xl bg-emerald-700 font-bold text-lg active:scale-95 transition">🎤 Voice Triage</button>
+            <button onclick="document.getElementById('receiptFileInput').click()" style="background-color: #7c3aed; font-size: 18px;">📷 Add Receipt</button>
+            <button onclick="renderTab('voice')" style="background-color: #059669; font-size: 18px;">🎤 Voice Triage</button>
           </div>
         `;
       } catch (e) {
-        container.innerHTML = `<div class="text-center py-10 text-red-400">${e.message}</div>`;
+        container.innerHTML = `<div style="text-align:center; padding:40px 0; color:#ef4444;">${e.message}</div>`;
       }
     }
 
     async function renderReceipts() {
       const container = document.getElementById('tabContent');
-      container.innerHTML = '<div class="text-center py-10">Loading receipts...</div>';
+      container.innerHTML = '<div style="text-align:center; padding:40px 0;">Loading receipts...</div>';
       try {
         const res = await apiFetch('/receipts');
         const receipts = await res.json();
         if (!receipts.length) {
           container.innerHTML = `
-            <div class="text-center py-20">
-              <p class="text-slate-400">No receipts yet</p>
-              <button onclick="document.getElementById('receiptFileInput').click()" class="mt-4 py-3 px-6 rounded-lg bg-violet-600 font-semibold">Add Receipt</button>
+            <div style="text-align:center; padding:80px 0;">
+              <p style="color: #94a3b8;">No receipts yet</p>
+              <button onclick="document.getElementById('receiptFileInput').click()" style="margin-top: 16px; background-color: #7c3aed;">Add Receipt</button>
             </div>`;
           return;
         }
         container.innerHTML = receipts.map(r => `
-          <div class="swipe-card bg-slate-900 rounded-2xl p-4 border border-slate-800 mb-3" data-id="${r.receipt_id}">
-            <div class="flex justify-between items-start">
+          <div class="card swipe-card" data-id="${r.receipt_id}">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
               <div>
-                <p class="font-semibold">${r.merchant_name || 'Unknown'}</p>
-                <p class="text-xs text-slate-400">${new Date(r.timestamp).toLocaleDateString()}</p>
+                <p style="font-weight: 600;">${r.merchant_name || 'Unknown'}</p>
+                <p style="font-size: 12px; color: #94a3b8;">${new Date(r.timestamp).toLocaleDateString()}</p>
               </div>
-              <div class="text-right">
-                <p class="text-lg font-bold text-violet-300">${formatCurrency(r.total_amount)}</p>
-                <span class="text-xs px-2 py-0.5 rounded-full ${r.processing_status === 'Success' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">${r.processing_status}</span>
+              <div style="text-align: right;">
+                <p style="font-size: 18px; font-weight: bold; color: #a78bfa;">${formatCurrency(r.total_amount)}</p>
+                <span style="font-size: 12px; padding: 2px 8px; border-radius: 20px; background: ${r.processing_status === 'Success' ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)'}; color: ${r.processing_status === 'Success' ? '#6ee7b7' : '#fcd34d'};">${r.processing_status}</span>
               </div>
             </div>
             ${r.line_items.length ? r.line_items.map(i => `
-              <div class="mt-2 text-xs text-slate-300 flex justify-between border-t border-slate-800 pt-2">
+              <div style="margin-top: 8px; font-size: 12px; display: flex; justify-content: space-between; border-top: 1px solid #334155; padding-top: 8px;">
                 <span>${i.product_name}</span>
                 <span>${i.quantity} × ${formatCurrency(i.unit_price)}</span>
               </div>
-            `).join('') : '<p class="text-xs text-amber-300 mt-2">Incomplete — tap Voice tab to split items</p>'}
+            `).join('') : '<p style="font-size: 12px; color: #fcd34d; margin-top: 8px;">Incomplete — tap Voice tab to split items</p>'}
           </div>
         `).join('');
         attachSwipeHandlers();
       } catch (e) {
-        container.innerHTML = `<div class="text-center py-10 text-red-400">${e.message}</div>`;
+        container.innerHTML = `<div style="text-align:center; padding:40px 0; color:#ef4444;">${e.message}</div>`;
       }
     }
 
@@ -328,29 +437,29 @@
 
     async function renderIncome() {
       const container = document.getElementById('tabContent');
-      container.innerHTML = '<div class="text-center py-10">Loading income...</div>';
+      container.innerHTML = '<div style="text-align:center; padding:40px 0;">Loading income...</div>';
       try {
         const res = await apiFetch('/incomes');
         const incomes = await res.json();
         container.innerHTML = `
-          <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800">
-            <p class="text-sm text-slate-400">Total Income</p>
-            <p class="text-2xl font-bold">${formatCurrency(incomes.reduce((acc, i) => acc + Number(i.amount), 0))}</p>
+          <div class="card">
+            <p style="font-size: 14px; color: #94a3b8;">Total Income</p>
+            <p style="font-size: 24px; font-weight: bold;">${formatCurrency(incomes.reduce((acc, i) => acc + Number(i.amount), 0))}</p>
           </div>
-          <form id="incomeForm" class="bg-slate-900 rounded-2xl p-4 border border-slate-800 space-y-3">
-            <input id="incomeAmount" type="number" step="0.01" placeholder="Amount" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none" />
-            <select id="incomeSource" class="w-full bg-slate-800 rounded-lg px-4 py-3 outline-none">
+          <form id="incomeForm" class="card" style="display: flex; flex-direction: column; gap: 12px;">
+            <input id="incomeAmount" type="number" step="0.01" placeholder="Amount" />
+            <select id="incomeSource">
               <option value="salary">Salary</option>
               <option value="daily wages">Daily Wages</option>
               <option value="cash">Cash</option>
             </select>
-            <button type="submit" class="w-full py-3 rounded-lg bg-emerald-700 font-semibold">Add Income</button>
+            <button type="submit" style="background-color: #059669;">Add Income</button>
           </form>
-          <div class="space-y-2">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
             ${incomes.map(i => `
-              <div class="bg-slate-900 rounded-xl p-3 border border-slate-800 flex justify-between">
-                <div><p class="font-medium">${i.source}</p><p class="text-xs text-slate-500">${new Date(i.timestamp).toLocaleDateString()}</p></div>
-                <p class="font-bold text-emerald-300">${formatCurrency(i.amount)}</p>
+              <div class="card" style="padding: 12px; display: flex; justify-content: space-between;">
+                <div><p style="font-weight: 500;">${i.source}</p><p style="font-size: 12px; color: #64748b;">${new Date(i.timestamp).toLocaleDateString()}</p></div>
+                <p style="font-weight: bold; color: #6ee7b7;">${formatCurrency(i.amount)}</p>
               </div>
             `).join('')}
           </div>
@@ -368,28 +477,28 @@
           renderIncome();
         });
       } catch (e) {
-        container.innerHTML = `<div class="text-center py-10 text-red-400">${e.message}</div>`;
+        container.innerHTML = `<div style="text-align:center; padding:40px 0; color:#ef4444;">${e.message}</div>`;
       }
     }
 
     async function renderInsights() {
       const container = document.getElementById('tabContent');
-      container.innerHTML = '<div class="text-center py-10">Loading insights...</div>';
+      container.innerHTML = '<div style="text-align:center; padding:40px 0;">Loading insights...</div>';
       try {
         const res = await apiFetch('/insights');
         const insights = await res.json();
         container.innerHTML = `
-          <button id="generateInsightsBtn" class="w-full py-4 rounded-2xl bg-violet-700 font-bold text-lg active:scale-95 transition">✨ Generate Strategic Insights</button>
-          <div class="space-y-3 mt-4">
+          <button id="generateInsightsBtn" style="background-color: #7c3aed; font-size: 18px;">✨ Generate Strategic Insights</button>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px;">
             ${insights.length ? insights.map(i => `
-              <div class="bg-slate-900 rounded-2xl p-4 border border-slate-800">
-                <div class="flex items-start justify-between gap-2">
-                  <p class="text-sm">${i.insight_text}</p>
-                  <button onclick="speakText('${i.insight_text.replace(/'/g, '\\\'')}')" class="text-violet-300 text-xl">🔊</button>
+              <div class="card">
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
+                  <p style="font-size: 14px;">${i.insight_text}</p>
+                  <button onclick="speakText('${i.insight_text.replace(/'/g, '\\\'')}')" style="width: auto; background: none; color: #a78bfa; padding: 4px;">🔊</button>
                 </div>
-                <p class="text-xs text-slate-500 mt-2">${i.category} • ${new Date(i.timestamp).toLocaleDateString()}</p>
+                <p style="font-size: 12px; color: #64748b; margin-top: 8px;">${i.category} • ${new Date(i.timestamp).toLocaleDateString()}</p>
               </div>
-            `).join('') : '<p class="text-center text-slate-500 mt-4">No insights yet. Tap Generate.</p>'}
+            `).join('') : '<p style="text-align:center; color: #64748b; margin-top: 16px;">No insights yet. Tap Generate.</p>'}
           </div>
         `;
         document.getElementById('generateInsightsBtn').addEventListener('click', async () => {
@@ -397,7 +506,7 @@
           renderInsights();
         });
       } catch (e) {
-        container.innerHTML = `<div class="text-center py-10 text-red-400">${e.message}</div>`;
+        container.innerHTML = `<div style="text-align:center; padding:40px 0; color:#ef4444;">${e.message}</div>`;
       }
     }
 
@@ -411,18 +520,18 @@
       } catch (e) {}
 
       container.innerHTML = `
-        <div class="bg-slate-900 rounded-2xl p-6 border border-slate-800 text-center">
-          <p class="text-slate-400 mb-4">Tap to speak your purchase details</p>
-          <button id="recordBtn" class="w-24 h-24 rounded-full bg-red-600 text-4xl active:scale-90 transition">🎤</button>
-          <p id="recordingStatus" class="mt-3 text-sm text-slate-400">Not recording</p>
-          <div class="mt-4">
-            <label class="text-sm text-slate-400">Link to incomplete receipt (optional)</label>
-            <select id="voiceReceiptSelect" class="w-full mt-2 bg-slate-800 rounded-lg px-4 py-3 outline-none">
+        <div class="card" style="text-align: center;">
+          <p style="color: #94a3b8; margin-bottom: 16px;">Tap to speak your purchase details</p>
+          <button id="recordBtn" style="width: 96px; height: 96px; border-radius: 50%; background-color: #dc2626; font-size: 36px;">🎤</button>
+          <p id="recordingStatus" style="margin-top: 12px; font-size: 14px; color: #94a3b8;">Not recording</p>
+          <div style="margin-top: 16px;">
+            <label style="font-size: 14px; color: #94a3b8;">Link to incomplete receipt (optional)</label>
+            <select id="voiceReceiptSelect" style="margin-top: 8px;">
               <option value="">None</option>
               ${incompleteReceipts.map(r => `<option value="${r.receipt_id}">${r.merchant_name || 'Unknown'} — ${formatCurrency(r.total_amount)}</option>`).join('')}
             </select>
           </div>
-          <button id="uploadAudioBtn" class="mt-4 w-full py-3 rounded-lg bg-slate-700 font-semibold">Upload Audio File</button>
+          <button id="uploadAudioBtn" style="margin-top: 16px; background-color: #475569;">Upload Audio File</button>
         </div>
       `;
 
@@ -527,16 +636,16 @@
 
     // Auth tab switch
     document.getElementById('loginTabBtn').addEventListener('click', () => {
-      document.getElementById('loginForm').classList.remove('hidden');
-      document.getElementById('registerForm').classList.add('hidden');
-      document.getElementById('loginTabBtn').classList.add('bg-violet-600');
-      document.getElementById('registerTabBtn').classList.remove('bg-violet-600');
+      document.getElementById('loginForm').style.display = 'flex';
+      document.getElementById('registerForm').style.display = 'none';
+      document.getElementById('loginTabBtn').classList.add('tab-active');
+      document.getElementById('registerTabBtn').classList.remove('tab-active');
     });
     document.getElementById('registerTabBtn').addEventListener('click', () => {
-      document.getElementById('registerForm').classList.remove('hidden');
-      document.getElementById('loginForm').classList.add('hidden');
-      document.getElementById('registerTabBtn').classList.add('bg-violet-600');
-      document.getElementById('loginTabBtn').classList.remove('bg-violet-600');
+      document.getElementById('registerForm').style.display = 'flex';
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('registerTabBtn').classList.add('tab-active');
+      document.getElementById('loginTabBtn').classList.remove('tab-active');
     });
 
     document.getElementById('loginSubmit').addEventListener('click', async () => {
@@ -593,7 +702,7 @@
       }
     });
 
-    document.querySelectorAll('.tab-btn').forEach(btn => {
+    document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       btn.addEventListener('click', () => renderTab(btn.dataset.tab));
     });
 
@@ -622,4 +731,4 @@
     loadApp();
   </script>
 </body>
-          </html>
+        </html>
