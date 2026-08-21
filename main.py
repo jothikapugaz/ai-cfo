@@ -35,6 +35,14 @@ UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
+@app.get("/manifest.json")
+def get_manifest():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "frontend", "manifest.json"))
+
+@app.get("/sw.js")
+def get_service_worker():
+    return FileResponse(os.path.join(os.path.dirname(__file__), "frontend", "sw.js"))
+
 
 def save_upload_file(user_id: int, file: UploadFile) -> str:
     contents = file.file.read()
