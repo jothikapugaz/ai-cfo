@@ -1,0 +1,10 @@
+{
+  "name": "AI Personal CFO & Wealth Advisor",
+  "short_name": "AI CFO",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#7c3aed",
+  "description": "Voice-first AI personal CFO and wealth advisor",
+  "icons": []
+}
